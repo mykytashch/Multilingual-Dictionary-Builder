@@ -6,6 +6,8 @@ import nltk
 from nltk.corpus import wordnet as wn
 import random
 import time
+import requests
+from bs4 import BeautifulSoup
 
 # Загрузка WordNet
 nltk.download('wordnet')
@@ -59,11 +61,14 @@ def create_site_fields():
         browse_button = ttk.Button(frame, text="Обзор", command=lambda s=site: open_config_file(s))
         browse_button.place(x=660, y=row)
 
-        parse_checkbutton = ttk.Checkbutton(frame, text="Парсинг", variable=websites[site]["parse_function"])
+        parse_function = tk.StringVar(value="parse_site1")
+        parse_checkbutton = ttk.Checkbutton(frame, text="Парсинг", variable=parse_function,
+                                            command=lambda s=site: toggle_parse_function(site))
         parse_checkbutton.place(x=740, y=row)
 
         websites[site]["url"] = url_entry
         websites[site]["config_file_entry"] = config_entry
+        websites[site]["parse_function"] = parse_function
 
         row += 30
 
@@ -85,13 +90,24 @@ def create_json():
             url = websites[site]["url"].get()
             parse_function = websites[site]["parse_function"].get()
             if parse_function:
-                parsed_data = parse_function(url, config)
+                parsed_data = eval(parse_function)(url, config)
                 word_data.update(parsed_data)
 
             # Задержка перед каждым запросом
-            if use_delay.get():
-                delay = random.uniform(0.5, 2.0)
-                time.sleep(delay)
+            if use_delay.get() and use_proxy.get():
+                proxy_delay = float(delay_combobox.get())
+                proxy_index = words.index(word) % len(proxy_list)
+                proxy = proxy_list[proxy_index].strip()
+                # Использовать прокси при выполнении запроса с задержкой
+                response = make_request_with_proxy(word, url, proxy, proxy_delay)
+            else:
+                # Обычный запрос без прокси и задержки
+                response = make_request(word, url)
+
+            if response is not None and response.status_code == 200:
+                # Обработка ответа
+                parsed_data = parse_response(response)
+                word_data.update(parsed_data)
 
         data.append(word_data)
 
@@ -114,70 +130,109 @@ def select_all(event):
 
 
 def parse_site1(url, config):
-    # Реализация парсинга для Site 1
-    translations = ["Translation 1", "Translation 2"]
-    examples = ["Example 1", "Example 2"]
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Возвращаем случайно выбранные элементы из списков
-    translation = random.choice(translations)
-    example = random.choice(examples)
+    examples = []
+    example_divs = soup.find_all('div', class_='example')
+    for example_div in example_divs:
+        src_text = example_div.find('div', class_='src ltr').text.strip()
+        trg_text = example_div.find('div', class_='trg ltr').text.strip()
+        examples.append({'source': src_text, 'translation': trg_text})
 
     return {
-        "translations": translation,
-        "examples": example
+        "examples": examples
     }
 
 
 def parse_site2(url, config):
-    # Реализация парсинга для Site 2
-    translations = ["Translation 1", "Translation 2"]
-    transcription = "Transcription"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Возвращаем случайно выбранный элемент из списка
-    translation = random.choice(translations)
+    translations = []
+    translation_spans = soup.find_all('span', class_='translation')
+    for translation_span in translation_spans:
+        translation_text = translation_span.text.strip()
+        translations.append(translation_text)
 
     return {
-        "translations": translation,
-        "transcription": transcription
+        "translations": translations
     }
 
 
 def parse_site3(url, config):
-    # Реализация парсинга для Site 3
-    usage_examples = ["Usage Example 1", "Usage Example 2"]
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Возвращаем случайно выбранный элемент из списка
-    usage_example = random.choice(usage_examples)
+    usage_examples = []
+    usage_divs = soup.find_all('div', class_='usage')
+    for usage_div in usage_divs:
+        example_text = usage_div.text.strip()
+        usage_examples.append(example_text)
 
     return {
-        "usage_examples": usage_example
+        "usage_examples": usage_examples
     }
 
 
 def toggle_parse_function(site):
     parse_function = websites[site]["parse_function"]
-    if parse_function.get():
-        parse_function.set(None)
+    if parse_function.get() == "parse_site1":
+        parse_function.set("parse_site2")
     else:
-        parse_function.set(parse_site1)
+        parse_function.set("parse_site1")
 
 
 def toggle_proxy():
     if use_proxy.get():
-        # Включить использование прокси
-        pass
+        proxy_button.config(state="normal")
     else:
-        # Отключить использование прокси
-        pass
+        proxy_button.config(state="disabled")
+
+
+def make_request(word, url):
+    # TODO: Send request and return response
+    response = requests.get(url)
+    return response
+
+
+def make_request_with_proxy(word, url, proxy, delay):
+    # TODO: Send request through proxy with delay and return response
+    time.sleep(delay)  # delay before each request
+    proxies = {
+        'http': proxy,
+        'https': proxy
+    }
+    response = requests.get(url, proxies=proxies)
+    return response
+
+
+def load_proxy_list():
+    file_path = filedialog.askopenfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt")])
+    if file_path:
+        # Load proxies from file
+        with open(file_path, "r") as file:
+            global proxy_list
+            proxy_list = file.readlines()
+            # Remove newline characters from the proxy list
+            proxy_list = [proxy.strip() for proxy in proxy_list]
+            # Use proxies from the list when making requests
+
+
+# ... rest of the code ...
+
+
+def parse_response(response):
+    # Обработать ответ
+    # TODO: Implement parsing logic for the response
+    pass
 
 
 def toggle_delay():
     if use_delay.get():
-        # Включить использование задержки
-        pass
+        delay_combobox.config(state="readonly")
     else:
-        # Отключить использование задержки
-        pass
+        delay_combobox.config(state="disabled")
 
 
 # Создание главного окна
@@ -227,18 +282,26 @@ output_text.bind("<Command-a>", select_all)
 # Настройка чекбоксов для включения/отключения парсинга, использования прокси и задержки
 row = 150
 for site in websites:
-    parse_checkbutton = ttk.Checkbutton(frame, text="Парсинг", variable=websites[site]["parse_function"])
+    parse_checkbutton = ttk.Checkbutton(frame, text="Парсинг", variable=websites[site]["parse_function"],
+                                        command=lambda s=site: toggle_parse_function(site))
     parse_checkbutton.place(x=740, y=row)
     row += 30
 
 use_proxy = tk.BooleanVar()
-proxy_checkbutton = ttk.Checkbutton(frame, text="Использовать прокси", variable=use_proxy)
+proxy_checkbutton = ttk.Checkbutton(frame, text="Использовать прокси", variable=use_proxy, command=toggle_proxy)
 proxy_checkbutton.place(x=700, y=50)
 
+proxy_button = ttk.Button(frame, text="Загрузить прокси", state="disabled", command=load_proxy_list)
+proxy_button.place(x=850, y=50)
+
 use_delay = tk.BooleanVar()
-delay_checkbutton = ttk.Checkbutton(frame, text="Использовать задержку", variable=use_delay)
+delay_checkbutton = ttk.Checkbutton(frame, text="Использовать задержку", variable=use_delay, command=toggle_delay)
 delay_checkbutton.place(x=700, y=100)
 
+delay_combobox = ttk.Combobox(frame, state="disabled")
+delay_combobox.place(x=850, y=100)
+delay_combobox["values"] = [0.5, 1.0, 1.5, 2.0]  # Пример значений задержки
+
 # Запуск главного цикла приложения
-window.geometry("800x600")
+window.geometry("1000x700")
 window.mainloop()
