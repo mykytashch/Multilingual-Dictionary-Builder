@@ -8,6 +8,7 @@ from synonyms_and_similar_words import create_synonyms_and_similar_words
 from threading import Thread
 import time
 
+stop_flag = False  # Флаг для остановки процесса
 
 def create_json():
     start_line = int(start_entry.get())
@@ -20,6 +21,10 @@ def create_json():
     data = []
 
     for word in words:
+        if stop_flag:  # Проверка флага остановки
+            output_text.insert(tk.END, "Процесс остановлен.\n")
+            break
+
         word_data = {"word": word}
 
         if parse_site1.get():
@@ -76,6 +81,10 @@ def read_proxy_list(file_path):
 
 def parse_words(words):
     for word in words:
+        if stop_flag:  # Проверка флага остановки
+            output_text.insert(tk.END, "Процесс остановлен.\n")
+            break
+
         word_data = {"word": word}
 
         if parse_site1.get():
@@ -114,8 +123,20 @@ def create_json_async():
 
     output_text.delete("1.0", tk.END)
 
+    global stop_flag  # Объявление флага остановки как глобальной переменной
+    stop_flag = False
+
     thread = Thread(target=parse_words, args=(words,))
     thread.start()
+
+
+def stop_processing():
+    global stop_flag  # Объявление флага остановки как глобальной переменной
+    stop_flag = True
+
+
+def clear_output():
+    output_text.delete("1.0", tk.END)
 
 
 window = tk.Tk()
@@ -176,11 +197,21 @@ delay_combobox.grid(row=4, column=2, padx=10, pady=5, columnspan=2)
 delay_values = [str(i / 10) + "с" for i in range(1, 151)]
 delay_combobox["values"] = delay_values
 
-create_button = ttk.Button(frame, text="Создать JSON'ы", command=create_json_async)
-create_button.grid(row=5, column=0, columnspan=2, padx=10, pady=10)
+button_frame = ttk.Frame(frame)
+button_frame.grid(row=5, column=0, columnspan=4)
 
-export_button = ttk.Button(frame, text="Экспорт JSON", command=export_json)
-export_button.grid(row=5, column=2, columnspan=2, padx=10, pady=10)
+create_button = ttk.Button(button_frame, text="Создать JSON'ы", command=create_json_async)
+create_button.pack(side=tk.LEFT, padx=(5, 2), pady=10)
+
+stop_button = ttk.Button(button_frame, text="🛑", command=stop_processing, width=3)
+stop_button.pack(side=tk.LEFT, padx=(2, 2), pady=10)
+
+clear_button = ttk.Button(button_frame, text="🗑", command=clear_output, width=3)
+clear_button.pack(side=tk.LEFT, padx=(2, 10), pady=10)
+
+export_button = ttk.Button(button_frame, text="Экспорт JSON", command=export_json)
+export_button.pack(side=tk.LEFT, padx=(10, 0), pady=10)
+
 
 output_text = tk.Text(frame, font=("Helvetica", 12), height=10, width=80)
 output_text.grid(row=6, column=0, columnspan=4, padx=10, pady=10)
