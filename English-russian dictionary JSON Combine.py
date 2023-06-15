@@ -1,76 +1,12 @@
-# -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk, filedialog
 import json
-import nltk
-from nltk.corpus import wordnet as wn
-import random
+from parsing_config_site1 import parse_site1
+from parsing_config_site2 import parse_site2
+from parsing_config_site3 import parse_site3
+from synonyms_and_similar_words import create_synonyms_and_similar_words
+from threading import Thread
 import time
-import requests
-from bs4 import BeautifulSoup
-
-# Загрузка WordNet
-nltk.download('wordnet')
-
-# Список сайтов и соответствующих им конфигураций
-websites = {
-    "Site 1": {
-        "url": None,
-        "config_file": None,
-        "parse_function": None
-    },
-    "Site 2": {
-        "url": None,
-        "config_file": None,
-        "parse_function": None
-    },
-    "Site 3": {
-        "url": None,
-        "config_file": None,
-        "parse_function": None
-    }
-}
-
-# Загрузка конфигурации для каждого сайта
-site_configs = {}
-
-
-def load_config_file(site):
-    file_path = filedialog.askopenfilename(defaultextension=".json", filetypes=[("JSON Files", "*.json")])
-    if file_path:
-        with open(file_path, "r") as file:
-            site_configs[site] = json.load(file)
-
-
-def open_config_file(site):
-    load_config_file(site)
-
-
-def create_site_fields():
-    row = 150
-    for site in websites:
-        label = tk.Label(frame, text=site, font=("Helvetica", 12), foreground="white")
-        label.place(x=50, y=row)
-
-        url_entry = tk.Entry(frame, font=("Helvetica", 12))
-        url_entry.place(x=200, y=row)
-
-        config_entry = tk.Entry(frame, font=("Helvetica", 12))
-        config_entry.place(x=400, y=row, width=250)
-
-        browse_button = ttk.Button(frame, text="Обзор", command=lambda s=site: open_config_file(s))
-        browse_button.place(x=660, y=row)
-
-        parse_function = tk.StringVar(value="parse_site1")
-        parse_checkbutton = ttk.Checkbutton(frame, text="Парсинг", variable=parse_function,
-                                            command=lambda s=site: toggle_parse_function(site))
-        parse_checkbutton.place(x=740, y=row)
-
-        websites[site]["url"] = url_entry
-        websites[site]["config_file_entry"] = config_entry
-        websites[site]["parse_function"] = parse_function
-
-        row += 30
 
 
 def create_json():
@@ -86,34 +22,30 @@ def create_json():
     for word in words:
         word_data = {"word": word}
 
-        for site, config in site_configs.items():
-            url = websites[site]["url"].get()
-            parse_function = websites[site]["parse_function"].get()
-            if parse_function:
-                parsed_data = eval(parse_function)(url, config)
-                word_data.update(parsed_data)
+        if parse_site1.get():
+            parsed_data_site1 = parse_site1(word)
+            word_data.update(parsed_data_site1)
 
-            # Задержка перед каждым запросом
-            if use_delay.get() and use_proxy.get():
-                proxy_delay = float(delay_combobox.get())
-                proxy_index = words.index(word) % len(proxy_list)
-                proxy = proxy_list[proxy_index].strip()
-                # Использовать прокси при выполнении запроса с задержкой
-                response = make_request_with_proxy(word, url, proxy, proxy_delay)
-            else:
-                # Обычный запрос без прокси и задержки
-                response = make_request(word, url)
+        if parse_site2.get():
+            parsed_data_site2 = parse_site2(word)
+            word_data.update(parsed_data_site2)
 
-            if response is not None and response.status_code == 200:
-                # Обработка ответа
-                parsed_data = parse_response(response)
-                word_data.update(parsed_data)
+        if parse_site3.get():
+            parsed_data_site3 = parse_site3(word)
+            word_data.update(parsed_data_site3)
 
-        data.append(word_data)
+        if use_synonyms.get():
+            synonyms_and_similar_words = create_synonyms_and_similar_words(word)
+            word_data.update(synonyms_and_similar_words)
 
-    json_data = json.dumps(data, indent=4)
-    output_text.delete("1.0", tk.END)
-    output_text.insert(tk.END, json_data)
+        output_text.insert(tk.END, json.dumps(word_data, indent=4))
+        output_text.insert(tk.END, '\n')
+
+        output_text.see(tk.END)  # Прокрутить до конца текстового поля
+
+        if use_delay.get():
+            delay = float(delay_combobox.get().replace("с", ""))
+            time.sleep(delay)
 
 
 def export_json():
@@ -124,184 +56,133 @@ def export_json():
             file.write(json_data)
 
 
-def select_all(event):
-    output_text.tag_add("sel", "1.0", "end")
-    return "break"
-
-
-def parse_site1(url, config):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    examples = []
-    example_divs = soup.find_all('div', class_='example')
-    for example_div in example_divs:
-        src_text = example_div.find('div', class_='src ltr').text.strip()
-        trg_text = example_div.find('div', class_='trg ltr').text.strip()
-        examples.append({'source': src_text, 'translation': trg_text})
-
-    return {
-        "examples": examples
-    }
-
-
-def parse_site2(url, config):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    translations = []
-    translation_spans = soup.find_all('span', class_='translation')
-    for translation_span in translation_spans:
-        translation_text = translation_span.text.strip()
-        translations.append(translation_text)
-
-    return {
-        "translations": translations
-    }
-
-
-def parse_site3(url, config):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    usage_examples = []
-    usage_divs = soup.find_all('div', class_='usage')
-    for usage_div in usage_divs:
-        example_text = usage_div.text.strip()
-        usage_examples.append(example_text)
-
-    return {
-        "usage_examples": usage_examples
-    }
-
-
-def toggle_parse_function(site):
-    parse_function = websites[site]["parse_function"]
-    if parse_function.get() == "parse_site1":
-        parse_function.set("parse_site2")
-    else:
-        parse_function.set("parse_site1")
-
-
 def toggle_proxy():
-    if use_proxy.get():
-        proxy_button.config(state="normal")
-    else:
-        proxy_button.config(state="disabled")
-
-
-def make_request(word, url):
-    # TODO: Send request and return response
-    response = requests.get(url)
-    return response
-
-
-def make_request_with_proxy(word, url, proxy, delay):
-    # TODO: Send request through proxy with delay and return response
-    time.sleep(delay)  # delay before each request
-    proxies = {
-        'http': proxy,
-        'https': proxy
-    }
-    response = requests.get(url, proxies=proxies)
-    return response
+    proxy_button["state"] = "normal" if use_proxy.get() else "disabled"
+    delay_combobox["state"] = "readonly" if use_delay.get() else "disabled"
 
 
 def load_proxy_list():
-    file_path = filedialog.askopenfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt")])
+    file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
     if file_path:
-        # Load proxies from file
-        with open(file_path, "r") as file:
-            global proxy_list
-            proxy_list = file.readlines()
-            # Remove newline characters from the proxy list
-            proxy_list = [proxy.strip() for proxy in proxy_list]
-            # Use proxies from the list when making requests
+        proxy_list = read_proxy_list(file_path)
+        # Загрузить список прокси в функции парсинга
 
 
-# ... rest of the code ...
+def read_proxy_list(file_path):
+    with open(file_path, "r") as file:
+        proxy_list = [line.strip() for line in file.readlines()]
+    return proxy_list
 
 
-def parse_response(response):
-    # Обработать ответ
-    # TODO: Implement parsing logic for the response
-    pass
+def parse_words(words):
+    for word in words:
+        word_data = {"word": word}
+
+        if parse_site1.get():
+            parsed_data_site1 = parse_site1(word)
+            word_data.update(parsed_data_site1)
+
+        if parse_site2.get():
+            parsed_data_site2 = parse_site2(word)
+            word_data.update(parsed_data_site2)
+
+        if parse_site3.get():
+            parsed_data_site3 = parse_site3(word)
+            word_data.update(parsed_data_site3)
+
+        if use_synonyms.get():
+            synonyms_and_similar_words = create_synonyms_and_similar_words(word)
+            word_data.update(synonyms_and_similar_words)
+
+        output_text.insert(tk.END, json.dumps(word_data, indent=4))
+        output_text.insert(tk.END, '\n')
+
+        output_text.see(tk.END)  # Прокрутить до конца текстового поля
+
+        if use_delay.get():
+            delay = float(delay_combobox.get().replace("с", ""))
+            time.sleep(delay)
 
 
-def toggle_delay():
-    if use_delay.get():
-        delay_combobox.config(state="readonly")
-    else:
-        delay_combobox.config(state="disabled")
+def create_json_async():
+    start_line = int(start_entry.get())
+    end_line = int(end_entry.get())
+
+    with open("236k-of-words.txt", "r") as file:
+        lines = file.readlines()[start_line - 1:end_line]
+        words = [line.strip() for line in lines]
+
+    output_text.delete("1.0", tk.END)
+
+    thread = Thread(target=parse_words, args=(words,))
+    thread.start()
 
 
-# Создание главного окна
 window = tk.Tk()
-window.title("English-russian dictionary JSON Combine")
+window.title("English-Russian Dictionary")
+window.geometry("800x600")
+
+# Установка иконки приложения
 window.iconphoto(True, tk.PhotoImage(file="icon.png"))
 
-# Создание фрейма с фоновым изображением
-frame = tk.Frame(window)
+frame = ttk.Frame(window)
 frame.pack(fill="both", expand=True)
 
+# Установка фонового изображения
 background_image = tk.PhotoImage(file="background.png")
 background_label = tk.Label(frame, image=background_image)
 background_label.place(x=0, y=0, relwidth=1, relheight=1)
 
-# Настройка стиля для кнопок
-style = ttk.Style()
-style.configure("TButton", font=("Helvetica", 12), foreground="white", background="#007bff")
-
-# Настройка меток и полей ввода
 start_label = tk.Label(frame, text="Старт со слова ( число от 1 ):", font=("Helvetica", 14), foreground="white")
-start_label.place(x=50, y=50)
+start_label.grid(row=0, column=0, padx=10, pady=5)
 start_entry = tk.Entry(frame, font=("Helvetica", 12))
-start_entry.place(x=400, y=50)
+start_entry.grid(row=0, column=1, padx=10, pady=5)
 
 end_label = tk.Label(frame, text="Заканчиваем на слове ( число до 236736 ):", font=("Helvetica", 14), foreground="white")
-end_label.place(x=50, y=100)
+end_label.grid(row=0, column=2, padx=10, pady=5)
 end_entry = tk.Entry(frame, font=("Helvetica", 12))
-end_entry.place(x=400, y=100)
+end_entry.grid(row=0, column=3, padx=10, pady=5)
 
-# Создание полей и кнопок для настроек каждого сайта
-create_site_fields()
+parse_site1 = tk.BooleanVar()
+parse_site2 = tk.BooleanVar()
+parse_site3 = tk.BooleanVar()
+use_synonyms = tk.BooleanVar()
 
-# Настройка кнопки для создания JSON
-create_button = ttk.Button(frame, text="Создать JSON'ы", command=create_json)
-create_button.place(x=200, y=450)
+parse_site1_checkbutton = ttk.Checkbutton(frame, text="Парсинг с сайта 1", variable=parse_site1)
+parse_site1_checkbutton.grid(row=1, column=0, padx=10, pady=5, columnspan=2)
 
-# Настройка кнопки для экспорта JSON
-export_button = ttk.Button(frame, text="Экспорт JSON", command=export_json)
-export_button.place(x=350, y=450)
+parse_site2_checkbutton = ttk.Checkbutton(frame, text="Парсинг с сайта 2", variable=parse_site2)
+parse_site2_checkbutton.grid(row=1, column=2, padx=10, pady=5, columnspan=2)
 
-# Настройка текстового поля для вывода JSON
-output_text = tk.Text(frame, font=("Helvetica", 12), height=10)
-output_text.place(x=50, y=500, width=700)
-output_text.bind("<Command-a>", select_all)
+parse_site3_checkbutton = ttk.Checkbutton(frame, text="Парсинг с сайта 3", variable=parse_site3)
+parse_site3_checkbutton.grid(row=2, column=0, padx=10, pady=5, columnspan=2)
 
-# Настройка чекбоксов для включения/отключения парсинга, использования прокси и задержки
-row = 150
-for site in websites:
-    parse_checkbutton = ttk.Checkbutton(frame, text="Парсинг", variable=websites[site]["parse_function"],
-                                        command=lambda s=site: toggle_parse_function(site))
-    parse_checkbutton.place(x=740, y=row)
-    row += 30
+use_synonyms_checkbutton = ttk.Checkbutton(frame, text="Использовать синонимы и похожие слова", variable=use_synonyms)
+use_synonyms_checkbutton.grid(row=2, column=2, padx=10, pady=5, columnspan=2)
 
 use_proxy = tk.BooleanVar()
 proxy_checkbutton = ttk.Checkbutton(frame, text="Использовать прокси", variable=use_proxy, command=toggle_proxy)
-proxy_checkbutton.place(x=700, y=50)
+proxy_checkbutton.grid(row=3, column=0, padx=10, pady=5, columnspan=2)
 
 proxy_button = ttk.Button(frame, text="Загрузить прокси", state="disabled", command=load_proxy_list)
-proxy_button.place(x=850, y=50)
+proxy_button.grid(row=3, column=2, padx=10, pady=5, columnspan=2)
 
 use_delay = tk.BooleanVar()
-delay_checkbutton = ttk.Checkbutton(frame, text="Использовать задержку", variable=use_delay, command=toggle_delay)
-delay_checkbutton.place(x=700, y=100)
+delay_checkbutton = ttk.Checkbutton(frame, text="Использовать задержку", variable=use_delay, command=toggle_proxy)
+delay_checkbutton.grid(row=4, column=0, padx=10, pady=5, columnspan=2)
 
-delay_combobox = ttk.Combobox(frame, state="disabled")
-delay_combobox.place(x=850, y=100)
-delay_combobox["values"] = [0.5, 1.0, 1.5, 2.0]  # Пример значений задержки
+delay_combobox = ttk.Combobox(frame, state="readonly", width=5)
+delay_combobox.grid(row=4, column=2, padx=10, pady=5, columnspan=2)
+delay_values = [str(i / 10) + "с" for i in range(1, 151)]
+delay_combobox["values"] = delay_values
 
-# Запуск главного цикла приложения
-window.geometry("1000x700")
+create_button = ttk.Button(frame, text="Создать JSON'ы", command=create_json_async)
+create_button.grid(row=5, column=0, columnspan=2, padx=10, pady=10)
+
+export_button = ttk.Button(frame, text="Экспорт JSON", command=export_json)
+export_button.grid(row=5, column=2, columnspan=2, padx=10, pady=10)
+
+output_text = tk.Text(frame, font=("Helvetica", 12), height=10, width=80)
+output_text.grid(row=6, column=0, columnspan=4, padx=10, pady=10)
+
 window.mainloop()
