@@ -25,66 +25,52 @@ USER_AGENTS = [
     # Добавьте свои интересные User-Agent'ы
 ]
 
-def parse_examples(url, use_proxy=False):
+def load_word_list(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        word_list = file.read().splitlines()
+    return word_list
+
+def parse_examples(url):
     try:
         headers = {
             'User-Agent': random.choice(USER_AGENTS)
         }
-
-        proxies = None
-        if use_proxy:
-            proxies = read_proxy_list()
-
-        response = requests.get(url, headers=headers, proxies=proxies)
-
+        response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.content, 'html.parser')
+        examples = []
         example_divs = soup.find_all('div', {'class': 'example'})
 
-        examples = random.sample(example_divs, k=3)  # Выбираем случайные 3 примера
-
-        result = []
-        for div in examples:
+        for div in example_divs:
             src_text = div.find('div', {'class': 'src'}).text.strip()
             trg_text = div.find('div', {'class': 'trg'}).text.strip()
             example = {'source': src_text, 'target': trg_text}
-            result.append(example)
+            examples.append(example)
 
-        if not result:
-            print("Произошла ошибка: не найдены примеры на странице", url)
-        return result
+        return examples[:3]
 
-    except requests.exceptions.RequestException as e:
-        print("Произошла ошибка при загрузке страницы:", str(e))
-
-def read_proxy_list():
-    proxies = []
-    with open('proxylist.txt', 'r') as file:
-        proxies = [line.strip() for line in file.readlines() if line.strip()]
-    return proxies
+    except requests.exceptions.RequestException:
+        return []
 
 def main():
+    start_word = int(input("С какого слова начинаем? (от 1): "))
+    end_word = int(input("На каком слове заканчиваем? (до 236736): "))
+
+    word_list = load_word_list('word_list.txt')
+    selected_words = word_list[start_word-1:end_word]
+
     urls = [
-        'https://context.reverso.net/translation/english-russian/aforesaid',
-        'https://context.reverso.net/translation/english-russian/said',
-        'https://context.reverso.net/translation/english-russian/specified',
-        'https://context.reverso.net/translation/english-russian/indicated'
+        f"https://context.reverso.net/translation/english-russian/{word}" for word in selected_words
     ]
-
-    use_proxy = input("Хотите использовать прокси? (да/нет): ").lower() == "да"
-
-    if use_proxy:
-        random.shuffle(USER_AGENTS)  # Перемешиваем список User-Agent'ов, чтобы они соответствовали прокси
 
     results = {}
     for url in urls:
+        examples = parse_examples(url)
         word = url.split('/')[-1]
-        examples = parse_examples(url, use_proxy)
         results[word] = examples
         time.sleep(1)  # Задержка в 1 секунду
 
-        json_data = json.dumps(results[word], ensure_ascii=False, indent=4)
+        json_data = json.dumps({word: examples}, ensure_ascii=False, indent=4)
         print(json_data)
-        sys.stdout.flush()  # Очищаем буфер вывода
 
 if __name__ == '__main__':
     main()
