@@ -1,6 +1,12 @@
 # Multilingual-Dictionary-Builder
 Multilingual Dictionary Builder: Open-source repository for creating electronic dictionaries in multiple languages. Build your own multilingual dictionaries freely, share achievements, and contribute to the project's development. Join us to bring your dictionary ideas to life!
 
+
+
+![IMAGE 2023-06-19 14:17:00](https://github.com/mykytashch/Multilingual-Dictionary-Builder/assets/129088502/385499e2-746e-43b2-835b-912af02476d5)
+
+
+
 Русский (Russian):
 
 Мы использовали библиотеку NLTK в Python, чтобы получить список всех английских слов, содержащихся в файле "All English Words 236,000.txt".
