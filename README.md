@@ -1,4 +1,5 @@
-# Multilingual-Dictionary-Builder
+# 
+
 Multilingual Dictionary Builder: Open-source repository for creating electronic dictionaries in multiple languages. Build your own multilingual dictionaries freely, share achievements, and contribute to the project's development. Join us to bring your dictionary ideas to life!
 
 
@@ -22,3 +23,9 @@ Za pomocą biblioteki NLTK w Pythonie uzyskaliśmy listę wszystkich angielskich
 English:
 
 Using the NLTK library in Python, we obtained a list of all English words stored in the file "All English Words 236,000.txt".
+
+
+
+## Author
+
+Multilingual Dictionary Builder is developed by Mykyta Shcheholevatyi
